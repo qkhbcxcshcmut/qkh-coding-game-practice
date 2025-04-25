@@ -30,6 +30,7 @@ class MemoryGame:
         self.total_pairs = len(self.emojis)
         self.timer_running = False
         self.timer_id = None
+        self.high_score = self.load_high_score()
         
         self.flip_sound = None
         self.match_sound = None
@@ -55,6 +56,27 @@ class MemoryGame:
         self.create_ui()
         self.init_game()
     
+    def load_high_score(self):
+        """Load the high score from a file."""
+        print("Loading high score")
+        try:
+            with open("highscore.txt", "r") as file:
+                score = int(file.read().strip())
+                print(f"High score loaded: {score}")
+                return score
+        except (FileNotFoundError, ValueError):
+            print("No high score file found or invalid data, starting with 0")
+            return 0
+    
+    def save_high_score(self):
+        """Save the high score to a file."""
+        print(f"Saving high score: {self.high_score}")
+        try:
+            with open("highscore.txt", "w") as file:
+                file.write(str(self.high_score))
+        except IOError:
+            print("Error saving high score")
+    
     def create_ui(self):
         print("Creating UI")
         self.main_frame = tk.Frame(self.root, bg="#e0e7ff")
@@ -68,6 +90,9 @@ class MemoryGame:
         
         self.score_label = ttk.Label(self.stats_frame, text="Score: 0", style="Stats.TLabel")
         self.score_label.pack(side="left", padx=10)
+        
+        self.high_score_label = ttk.Label(self.stats_frame, text=f"High Score: {self.high_score}", style="Stats.TLabel")
+        self.high_score_label.pack(side="left", padx=10)
         
         self.moves_label = ttk.Label(self.stats_frame, text="Moves: 0", style="Stats.TLabel")
         self.moves_label.pack(side="left", padx=10)
@@ -197,7 +222,7 @@ class MemoryGame:
             if self.matched_pairs == self.total_pairs:
                 self.end_game()
         else:
-            self.score = max(0, self.score - 10)  # Prevent negative score
+            self.score = max(0, self.score - 10)
             print(f"No match. Score decreased by 10 to {self.score}")
             self.lock_board = True
             if self.no_match_sound:
@@ -222,6 +247,7 @@ class MemoryGame:
     
     def update_stats(self):
         self.score_label.configure(text=f"Score: {self.score}")
+        self.high_score_label.configure(text=f"High Score: {self.high_score}")
         self.moves_label.configure(text=f"Moves: {self.moves}")
         minutes = self.seconds // 60
         seconds = self.seconds % 60
@@ -240,6 +266,12 @@ class MemoryGame:
             self.root.after_cancel(self.timer_id)
             self.timer_id = None
         
+        # Update high score if current score is higher
+        if self.score > self.high_score:
+            self.high_score = self.score
+            self.save_high_score()
+            print(f"New high score: {self.high_score}")
+        
         try:
             pygame.mixer.music.stop()
             if self.win_sound:
@@ -247,7 +279,7 @@ class MemoryGame:
         except pygame.error:
             print("Error handling audio in end_game")
         
-        message = f"You completed the game!\nScore: {self.score}\nMoves: {self.moves}\nTime: {self.timer_label.cget('text').split(': ')[1]}"
+        message = f"You completed the game!\nScore: {self.score}\nHigh Score: {self.high_score}\nMoves: {self.moves}\nTime: {self.timer_label.cget('text').split(': ')[1]}"
         try:
             self.win_message.configure(text=message)
             self.win_dialog.deiconify()
