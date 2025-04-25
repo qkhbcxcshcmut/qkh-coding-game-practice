@@ -2,9 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 import random
 import time
+import pygame
 
 class MemoryGame:
     def __init__(self, root):
+        # Initialize pygame mixer for sounds
+        pygame.mixer.init()
+        
         self.root = root
         self.root.title("Memory Card Game")
         self.root.configure(bg="#e0e7ff")  # Soft indigo background
@@ -25,6 +29,20 @@ class MemoryGame:
         self.matched_pairs = 0
         self.total_pairs = len(self.emojis)
         self.timer_running = False
+
+        # Load sounds
+        try:
+            self.flip_sound = pygame.mixer.Sound("flip.wav")
+            self.match_sound = pygame.mixer.Sound("match.wav")
+            self.no_match_sound = pygame.mixer.Sound("no_match.wav")
+            self.win_sound = pygame.mixer.Sound("win.wav")
+            # Load and play background music
+            pygame.mixer.music.load("background_music.mp3")
+            pygame.mixer.music.set_volume(0.3)  # Set volume to 30%
+            pygame.mixer.music.play(-1)  # Loop indefinitely
+        except pygame.error as e:
+            print(f"Error loading sound files: {e}")
+            # Continue without sounds if files are missing
 
         # Style configuration
         self.style = ttk.Style()
@@ -131,12 +149,22 @@ class MemoryGame:
         self.timer_running = True
         self.update_timer()
 
+        # Restart background music if stopped
+        if not pygame.mixer.music.get_busy():
+            pygame.mixer.music.play(-1)
+
     def flip_card(self, index):
         if self.lock_board or self.cards[index] == self.first_card or self.cards[index]["state"] == "disabled":
             return
 
         card = self.cards[index]
         card.configure(text=card.emoji, bg="#3b82f6")  # Flip to show emoji
+
+        # Play flip sound
+        try:
+            self.flip_sound.play()
+        except AttributeError:
+            pass
 
         if not self.has_flipped_card:
             # First card
@@ -156,6 +184,10 @@ class MemoryGame:
             self.matched_pairs += 1
             self.first_card.configure(state="disabled", bg="#3b82f6")
             self.second_card.configure(state="disabled", bg="#3b82f6")
+            try:
+                self.match_sound.play()
+            except AttributeError:
+                pass
             self.reset_board()
             self.update_stats()
 
@@ -164,6 +196,10 @@ class MemoryGame:
         else:
             # No match
             self.lock_board = True
+            try:
+                self.no_match_sound.play()
+            except AttributeError:
+                pass
             self.root.after(1000, self.unflip_cards)
 
     def unflip_cards(self):
@@ -196,6 +232,12 @@ class MemoryGame:
         self.win_message.configure(text=message)
         self.win_dialog.deiconify()
         self.win_dialog.grab_set()
+        # Play win sound
+        try:
+            pygame.mixer.music.stop()
+            self.win_sound.play()
+        except AttributeError:
+            pass
 
     def play_again(self):
         self.win_dialog.withdraw()
