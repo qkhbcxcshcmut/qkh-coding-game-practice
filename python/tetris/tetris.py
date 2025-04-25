@@ -1,7 +1,6 @@
 import pygame
 import random
 import sys
-import math
 
 # Initialize Pygame and Mixer
 pygame.init()
@@ -56,7 +55,7 @@ SHAPES = [
     [[7, 7, 0], [0, 7, 7], [0, 0, 0]]                           # Z
 ]
 
-# Fonts (try to download "Press Start 2P" or replace with "monospace")
+# Fonts
 try:
     FONT = pygame.font.Font("pressstart2p.ttf", 36)
     SMALL_FONT = pygame.font.Font("pressstart2p.ttf", 20)
@@ -75,6 +74,34 @@ try:
 except:
     game_over_sound = None
     print("Warning: 'game_over.wav' not found. Game over sound disabled.")
+try:
+    rotate_sound = pygame.mixer.Sound("rotate.wav")
+except:
+    rotate_sound = None
+    print("Warning: 'rotate.wav' not found. Rotate sound disabled.")
+try:
+    move_sound = pygame.mixer.Sound("move.wav")
+except:
+    move_sound = None
+    print("Warning: 'move.wav' not found. Move sound disabled.")
+try:
+    hard_drop_sound = pygame.mixer.Sound("hard_drop.wav")
+except:
+    hard_drop_sound = None
+    print("Warning: 'hard_drop.wav' not found. Hard drop sound disabled.")
+try:
+    level_up_sound = pygame.mixer.Sound("level_up.wav")
+except:
+    level_up_sound = None
+    print("Warning: 'level_up.wav' not found. Level up sound disabled.")
+
+# Load and play background music
+try:
+    pygame.mixer.music.load("bgm.mp3")
+    pygame.mixer.music.set_volume(0.5)  # Lower volume for background music
+    pygame.mixer.music.play(-1)  # Loop indefinitely
+except:
+    print("Warning: 'bgm.mp3' not found. Background music disabled.")
 
 # Particle system for explosion effect
 particles = []
@@ -114,7 +141,7 @@ next_piece = None
 drop_time = 0
 title_scale = 1.0
 title_pulse = 0.02  # For title animation
-game_over_sound_played = False  # Track if game over sound has played
+game_over_sound_played = False
 
 # Screen setup
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -150,7 +177,6 @@ def draw_block(surface, x, y, color, block_size, is_board=False):
 
 def draw_board():
     draw_gradient_background()
-    # Draw board with grid
     board_surface = pygame.Surface((BOARD_WIDTH, BOARD_HEIGHT), pygame.SRCALPHA)
     for y in range(ROWS):
         for x in range(COLS):
@@ -159,7 +185,6 @@ def draw_board():
             else:
                 draw_block(board_surface, x, y, (0, 0, 0, 0), BLOCK_SIZE, is_board=True)
     
-    # Draw current piece
     if current_piece:
         for y, row in enumerate(current_piece["shape"]):
             for x, value in enumerate(row):
@@ -168,7 +193,6 @@ def draw_board():
                               current_piece["pos"]["y"] + y,
                               current_piece["color"], BLOCK_SIZE)
     screen.blit(board_surface, (BOARD_X, BOARD_Y))
-    # Draw board border
     pygame.draw.rect(screen, GRAY, (BOARD_X - 2, BOARD_Y - 2, BOARD_WIDTH + 4, BOARD_HEIGHT + 4), 2)
 
 def draw_next_piece():
@@ -212,24 +236,33 @@ def rotate():
         if not is_valid_position(current_piece):
             current_piece["shape"] = original_shape
             current_piece["pos"] = original_pos
+            return
+    if rotate_sound:
+        rotate_sound.play()
 
 def move_left():
     if not current_piece or game_over or is_paused:
         return
     if is_valid_position(current_piece, {"x": -1, "y": 0}):
         current_piece["pos"]["x"] -= 1
+        if move_sound:
+            move_sound.play()
 
 def move_right():
     if not current_piece or game_over or is_paused:
         return
     if is_valid_position(current_piece, {"x": 1, "y": 0}):
         current_piece["pos"]["x"] += 1
+        if move_sound:
+            move_sound.play()
 
 def move_down():
     if not current_piece or game_over or is_paused:
         return False
     if is_valid_position(current_piece, {"x": 0, "y": 1}):
         current_piece["pos"]["y"] += 1
+        if move_sound:
+            move_sound.play()
         return True
     return False
 
@@ -239,12 +272,13 @@ def hard_drop():
     while move_down():
         pass
     lock_piece()
+    if hard_drop_sound:
+        hard_drop_sound.play()
 
 def spawn_explosion(y):
-    # Spawn particles for each block in the cleared line
     for x in range(COLS):
         color = board[y][x] if board[y][x] else WHITE
-        for _ in range(5):  # Number of particles per block
+        for _ in range(5):
             px = BOARD_X + x * BLOCK_SIZE + BLOCK_SIZE / 2
             py = BOARD_Y + y * BLOCK_SIZE + BLOCK_SIZE / 2
             particles.append(Particle(px, py, color))
@@ -264,7 +298,7 @@ def lock_piece():
     next_piece = get_random_piece()
     if not is_valid_position(current_piece):
         game_over = True
-        if not game_over_sound_played and game_over_sound:  # Play game over sound once
+        if not game_over_sound_played and game_over_sound:
             game_over_sound.play()
             game_over_sound_played = True
     global drop_time
@@ -279,7 +313,7 @@ def check_lines():
             board.pop(y)
             board.insert(0, [0] * COLS)
             lines += 1
-            if line_clear_sound:  # Play line clear sound
+            if line_clear_sound:
                 line_clear_sound.play()
         else:
             y -= 1
@@ -292,18 +326,18 @@ def add_score(lines):
     new_level = score // 1000 + 1
     if new_level > level:
         level = new_level
+        if level_up_sound:
+            level_up_sound.play()
 
 def draw_start_screen():
     global title_scale, title_pulse
     draw_gradient_background()
-    # Title animation
     title_scale += title_pulse
     if title_scale > 1.1 or title_scale < 0.9:
         title_pulse = -title_pulse
     title = FONT.render("TETRIS", True, CYAN)
     scaled_title = pygame.transform.scale(title, (int(title.get_width() * title_scale), int(title.get_height() * title_scale)))
     screen.blit(scaled_title, (WINDOW_WIDTH // 2 - scaled_title.get_width() // 2, 100))
-    # Draw block grid like HTML version
     block_grid = [
         [CYAN, CYAN, CYAN, CYAN],
         [BLUE, BLUE, BLUE, ORANGE],
@@ -339,7 +373,6 @@ def draw_game_over():
     screen.blit(restart_text, (WINDOW_WIDTH // 2 - restart_text.get_width() // 2, 350))
 
 def draw_hud():
-    # Score and level box
     hud_surface = pygame.Surface((200, 200), pygame.SRCALPHA)
     hud_surface.fill((50, 50, 50, 200))
     pygame.draw.rect(hud_surface, GRAY, (0, 0, 200, 200), 2)
@@ -348,7 +381,6 @@ def draw_hud():
     hud_surface.blit(score_text, (10, 10))
     hud_surface.blit(level_text, (10, 100))
     screen.blit(hud_surface, (BOARD_X + BOARD_WIDTH + 50, BOARD_Y + 200))
-    # Next piece label
     next_text = SMALL_FONT.render("NEXT", True, WHITE)
     screen.blit(next_text, (BOARD_X + BOARD_WIDTH + 50, BOARD_Y + 30))
 
@@ -377,6 +409,7 @@ state = "start"
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
+            pygame.mixer.music.stop()  # Stop background music
             pygame.quit()
             sys.exit()
         if event.type == pygame.KEYDOWN:
@@ -399,6 +432,10 @@ while True:
                     is_paused = not is_paused
                     if not is_paused:
                         drop_time = pygame.time.get_ticks()
+                    if is_paused:
+                        pygame.mixer.music.pause()  # Pause background music
+                    else:
+                        pygame.mixer.music.unpause()  # Resume background music
                 elif event.key == pygame.K_r and game_over:
                     init_game()
                     game_over = False
