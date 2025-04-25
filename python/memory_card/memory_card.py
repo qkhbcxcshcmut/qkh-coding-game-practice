@@ -181,7 +181,8 @@ class MemoryGame:
     def check_for_match(self):
         print("Checking for match")
         if self.first_card.emoji == self.second_card.emoji:
-            self.score += 1
+            self.score += 100
+            print(f"Match found! Score increased by 100 to {self.score}")
             self.matched_pairs += 1
             self.first_card.configure(state="disabled", bg="#3b82f6")
             self.second_card.configure(state="disabled", bg="#3b82f6")
@@ -196,6 +197,8 @@ class MemoryGame:
             if self.matched_pairs == self.total_pairs:
                 self.end_game()
         else:
+            self.score = max(0, self.score - 10)  # Prevent negative score
+            print(f"No match. Score decreased by 10 to {self.score}")
             self.lock_board = True
             if self.no_match_sound:
                 try:
