@@ -45,9 +45,20 @@ def load_image(filename, size, fallback_color):
 try:
     shoot_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "shoot.wav"))
     explosion_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "explosion.wav"))
+    hit_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "hit.wav"))
+    game_over_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "game_over.wav"))
+    win_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "win.wav"))
 except FileNotFoundError:
-    print("Sound files not found. Running without sound.")
-    shoot_sound = explosion_sound = None
+    print("Sound files not found. Running without some sounds.")
+    shoot_sound = explosion_sound = hit_sound = game_over_sound = win_sound = None
+
+# Load and play background music
+try:
+    pygame.mixer.music.load(os.path.join(ASSET_PATH, "background_music.mp3"))
+    pygame.mixer.music.set_volume(0.5)  # Adjust volume (0.0 to 1.0)
+    pygame.mixer.music.play(-1)  # Loop indefinitely
+except FileNotFoundError:
+    print("Background music file not found. Running without background music.")
 
 # Player class
 class Player(pygame.sprite.Sprite):
@@ -164,6 +175,12 @@ def setup():
             all_sprites.add(enemy)
     
     score = 0
+    # Restart background music if it was stopped
+    if pygame.mixer.music.get_busy() == 0:
+        try:
+            pygame.mixer.music.play(-1)
+        except:
+            pass
 
 # Game loop
 async def main():
@@ -192,6 +209,13 @@ async def main():
         
         elif game_state == "game_over":
             draw_text("Game Over", WIDTH // 2 - 100, HEIGHT // 3, WHITE, True)
+            draw_text(f"Score: {score}", WIDTH // 2 - 60, HEIGHT // 2 - 30)
+            if draw_button("Play Again", WIDTH // 2 - 100, HEIGHT // 2 + 30, 200, 60, BLUE, GREEN):
+                setup()
+                game_state = "playing"
+        
+        elif game_state == "game_won":
+            draw_text("You Win!", WIDTH // 2 - 100, HEIGHT // 3, WHITE, True)
             draw_text(f"Score: {score}", WIDTH // 2 - 60, HEIGHT // 2 - 30)
             if draw_button("Play Again", WIDTH // 2 - 100, HEIGHT // 2 + 30, 200, 60, BLUE, GREEN):
                 setup()
@@ -229,17 +253,32 @@ async def main():
                 if pygame.sprite.collide_rect(bullet, player):
                     bullet.kill()
                     player.health -= 1
+                    if hit_sound:
+                        hit_sound.play()
                     # Add hit effect
                     effect = HitEffect(player.rect.centerx, player.rect.centery)
                     hit_effects.add(effect)
                     all_sprites.add(effect)
                     if player.health <= 0:
+                        if game_over_sound:
+                            pygame.mixer.music.stop()  # Stop background music
+                            game_over_sound.play()  # Play game over sound
                         game_state = "game_over"
 
             # Check if enemies reach bottom
             for enemy in enemies:
                 if enemy.rect.bottom >= HEIGHT:
+                    if game_over_sound:
+                        pygame.mixer.music.stop()  # Stop background music
+                        game_over_sound.play()  # Play game over sound
                     game_state = "game_over"
+
+            # Check for win condition
+            if not enemies:  # If no enemies left
+                if win_sound:
+                    pygame.mixer.music.stop()  # Stop background music
+                    win_sound.play()  # Play win sound
+                game_state = "game_won"
 
             # Draw
             all_sprites.draw(screen)
