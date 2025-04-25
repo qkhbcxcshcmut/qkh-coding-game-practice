@@ -3,6 +3,7 @@ import random
 import sys
 import asyncio
 import platform
+import os
 
 # Initialize Pygame
 pygame.init()
@@ -24,10 +25,26 @@ GREEN = (50, 255, 50)
 font = pygame.font.SysFont("Arial", 36)
 title_font = pygame.font.SysFont("Arial", 48, bold=True)
 
+# Asset folder
+ASSET_PATH = "assets"
+
+# Load images with fallback to surfaces
+def load_image(filename, size, fallback_color):
+    try:
+        path = os.path.join(ASSET_PATH, filename)
+        image = pygame.image.load(path).convert_alpha()
+        image = pygame.transform.scale(image, size)
+        return image
+    except (FileNotFoundError, pygame.error) as e:
+        print(f"Could not load {filename}: {e}. Using fallback surface.")
+        surface = pygame.Surface(size)
+        surface.fill(fallback_color)
+        return surface
+
 # Load sounds
 try:
-    shoot_sound = pygame.mixer.Sound("shoot.wav")
-    explosion_sound = pygame.mixer.Sound("explosion.wav")
+    shoot_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "shoot.wav"))
+    explosion_sound = pygame.mixer.Sound(os.path.join(ASSET_PATH, "explosion.wav"))
 except FileNotFoundError:
     print("Sound files not found. Running without sound.")
     shoot_sound = explosion_sound = None
@@ -36,8 +53,7 @@ except FileNotFoundError:
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
-        self.image = pygame.Surface((50, 50))
-        self.image.fill(GREEN)
+        self.image = load_image("player.png", (50, 50), GREEN)
         self.rect = self.image.get_rect(center=(WIDTH // 2, HEIGHT - 50))
         self.speed = 5
         self.health = 3
@@ -53,8 +69,7 @@ class Player(pygame.sprite.Sprite):
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((40, 40))
-        self.image.fill(RED)
+        self.image = load_image("enemy.png", (40, 40), RED)
         self.rect = self.image.get_rect(topleft=(x, y))
         self.speed = 2
         self.direction = 1
@@ -62,16 +77,17 @@ class Enemy(pygame.sprite.Sprite):
     def update(self):
         self.rect.x += self.speed * self.direction
         if random.random() < 0.01:  # Chance to shoot
-            bullet = Bullet(self.rect.centerx, self.rect.bottom, 5)
+            bullet = Bullet(self.rect.centerx, self.rect.bottom, 5, is_player=False)
             enemy_bullets.add(bullet)
             all_sprites.add(bullet)
 
 # Bullet class
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, speed):
+    def __init__(self, x, y, speed, is_player=True):
         super().__init__()
-        self.image = pygame.Surface((5, 10))
-        self.image.fill(WHITE if speed < 0 else RED)
+        filename = "bullet_player.png" if is_player else "bullet_enemy.png"
+        fallback_color = WHITE if is_player else RED
+        self.image = load_image(filename, (5, 10), fallback_color)
         self.rect = self.image.get_rect(center=(x, y))
         self.speed = speed
 
@@ -80,11 +96,26 @@ class Bullet(pygame.sprite.Sprite):
         if self.rect.bottom < 0 or self.rect.top > HEIGHT:
             self.kill()
 
+# Hit Effect class
+class HitEffect(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = load_image("hit_effect.png", (40, 40), WHITE)
+        self.rect = self.image.get_rect(center=(x, y))
+        self.lifetime = 10  # Frames to display effect
+        self.timer = 0
+
+    def update(self):
+        self.timer += 1
+        if self.timer >= self.lifetime:
+            self.kill()
+
 # Sprite groups
 all_sprites = pygame.sprite.Group()
 enemies = pygame.sprite.Group()
 player_bullets = pygame.sprite.Group()
 enemy_bullets = pygame.sprite.Group()
+hit_effects = pygame.sprite.Group()
 
 # Initialize game variables
 player = None
@@ -116,11 +147,12 @@ def draw_button(text, x, y, width, height, inactive_color, active_color):
 
 # Initialize game
 def setup():
-    global player, all_sprites, enemies, player_bullets, enemy_bullets, score
+    global player, all_sprites, enemies, player_bullets, enemy_bullets, hit_effects, score
     all_sprites.empty()
     enemies.empty()
     player_bullets.empty()
     enemy_bullets.empty()
+    hit_effects.empty()
     
     player = Player()
     all_sprites.add(player)
@@ -145,7 +177,7 @@ async def main():
                 running = False
             elif event.type == pygame.KEYDOWN:
                 if game_state == "playing" and event.key == pygame.K_SPACE:
-                    bullet = Bullet(player.rect.centerx, player.rect.top, -7)
+                    bullet = Bullet(player.rect.centerx, player.rect.top, -7, is_player=True)
                     player_bullets.add(bullet)
                     all_sprites.add(bullet)
                     if shoot_sound:
@@ -168,6 +200,7 @@ async def main():
         else:
             # Update
             all_sprites.update()
+            hit_effects.update()
 
             # Enemy movement
             if enemies:
@@ -186,11 +219,20 @@ async def main():
                     score += 10
                     if explosion_sound:
                         explosion_sound.play()
+                    # Add hit effect
+                    for hit in hits:
+                        effect = HitEffect(hit.rect.centerx, hit.rect.centery)
+                        hit_effects.add(effect)
+                        all_sprites.add(effect)
 
             for bullet in enemy_bullets:
                 if pygame.sprite.collide_rect(bullet, player):
                     bullet.kill()
                     player.health -= 1
+                    # Add hit effect
+                    effect = HitEffect(player.rect.centerx, player.rect.centery)
+                    hit_effects.add(effect)
+                    all_sprites.add(effect)
                     if player.health <= 0:
                         game_state = "game_over"
 
@@ -201,6 +243,7 @@ async def main():
 
             # Draw
             all_sprites.draw(screen)
+            hit_effects.draw(screen)
             draw_text(f"Score: {score}", 20, 20)
             draw_text(f"Health: {player.health}", 20, 60)
 
