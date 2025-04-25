@@ -3,8 +3,9 @@ import random
 import sys
 import math
 
-# Initialize Pygame
+# Initialize Pygame and Mixer
 pygame.init()
+pygame.mixer.init()  # Initialize audio mixer
 
 # Game settings
 ROWS = 20
@@ -63,6 +64,18 @@ except:
     FONT = pygame.font.SysFont("monospace", 36)
     SMALL_FONT = pygame.font.SysFont("monospace", 20)
 
+# Load sound effects
+try:
+    line_clear_sound = pygame.mixer.Sound("line_clear.wav")
+except:
+    line_clear_sound = None
+    print("Warning: 'line_clear.wav' not found. Line clear sound disabled.")
+try:
+    game_over_sound = pygame.mixer.Sound("game_over.wav")
+except:
+    game_over_sound = None
+    print("Warning: 'game_over.wav' not found. Game over sound disabled.")
+
 # Particle system for explosion effect
 particles = []
 
@@ -101,6 +114,7 @@ next_piece = None
 drop_time = 0
 title_scale = 1.0
 title_pulse = 0.02  # For title animation
+game_over_sound_played = False  # Track if game over sound has played
 
 # Screen setup
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -236,7 +250,7 @@ def spawn_explosion(y):
             particles.append(Particle(px, py, color))
 
 def lock_piece():
-    global current_piece, next_piece
+    global current_piece, next_piece, game_over, game_over_sound_played
     for y, row in enumerate(current_piece["shape"]):
         for x, value in enumerate(row):
             if value:
@@ -249,8 +263,10 @@ def lock_piece():
     current_piece = next_piece
     next_piece = get_random_piece()
     if not is_valid_position(current_piece):
-        global game_over
         game_over = True
+        if not game_over_sound_played and game_over_sound:  # Play game over sound once
+            game_over_sound.play()
+            game_over_sound_played = True
     global drop_time
     drop_time = pygame.time.get_ticks()
 
@@ -263,6 +279,8 @@ def check_lines():
             board.pop(y)
             board.insert(0, [0] * COLS)
             lines += 1
+            if line_clear_sound:  # Play line clear sound
+                line_clear_sound.play()
         else:
             y -= 1
     return lines
@@ -342,13 +360,14 @@ def update_particles():
             particles.remove(particle)
 
 def init_game():
-    global board, score, level, game_over, is_paused, current_piece, next_piece, drop_time, particles
+    global board, score, level, game_over, is_paused, current_piece, next_piece, drop_time, particles, game_over_sound_played
     board = create_board()
     score = 0
     level = 1
     game_over = False
     is_paused = False
     particles = []
+    game_over_sound_played = False
     next_piece = get_random_piece()
     current_piece = get_random_piece()
     drop_time = pygame.time.get_ticks()
